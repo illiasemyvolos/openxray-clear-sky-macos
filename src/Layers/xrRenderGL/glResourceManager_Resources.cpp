@@ -107,6 +107,12 @@ bool CResourceManager::_LinkPP(SPass& pass)
     if (pp.pp)
         return true;
 
+    // Apple OpenGL rejects draw calls when a separable pipeline has no
+    // fragment stage, even for depth-only passes. X-Ray uses a null pixel
+    // shader for shadow maps, so attach the input-free fallback shader.
+    if (!pass.ps->sh)
+        pass.ps = _CreatePS("dumb");
+
     if (GLAD_GL_ARB_separate_shader_objects)
         pp.pp = GLGeneratePipeline(pp.cName.c_str(), pass.ps->sh, pass.vs->sh, pass.gs->sh);
     else

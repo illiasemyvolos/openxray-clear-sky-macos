@@ -340,9 +340,21 @@ void xrDebug::DoExit(const std::string& message)
 pcstr xrDebug::ErrorToString(long code)
 {
     const char* result = nullptr;
+    switch (code)
+    {
+    case 0x0500: result = "GL_INVALID_ENUM"; break;
+    case 0x0501: result = "GL_INVALID_VALUE"; break;
+    case 0x0502: result = "GL_INVALID_OPERATION"; break;
+    case 0x0503: result = "GL_STACK_OVERFLOW"; break;
+    case 0x0504: result = "GL_STACK_UNDERFLOW"; break;
+    case 0x0505: result = "GL_OUT_OF_MEMORY"; break;
+    case 0x0506: result = "GL_INVALID_FRAMEBUFFER_OPERATION"; break;
+    case 0x0507: result = "GL_CONTEXT_LOST"; break;
+    }
 #if defined(XR_PLATFORM_WINDOWS)
     static string1024 descStorage;
-    DXGetErrorDescription(code, descStorage, sizeof(descStorage));
+    if (!result)
+        DXGetErrorDescription(code, descStorage, sizeof(descStorage));
     if (!result)
     {
         FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, 0, code, 0, descStorage, sizeof(descStorage) - 1, 0);
