@@ -10,6 +10,8 @@
   OpenXRay
 </h1>
 
+> **Unofficial fork:** This repository contains experimental macOS and Metal backend work based on OpenXRay. It is not affiliated with or endorsed by the OpenXRay team or GSC Game World. Game assets are not included.
+
 **OpenXRay** is an improved version of the X-Ray Engine, the game engine used in the world-famous S.T.A.L.K.E.R. game series by GSC Game World.
 
 This is a fan-made project not affiliated with GSC Game World in any way.
