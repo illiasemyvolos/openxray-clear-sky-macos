@@ -598,8 +598,19 @@ void CRenderTarget::accum_volumetric(CBackend& cmd_list, light* L)
         cmd_list.set_ColorWriteEnable(D3DCOLORWRITEENABLE_RED | D3DCOLORWRITEENABLE_GREEN | D3DCOLORWRITEENABLE_BLUE);
 
         cmd_list.set_Geometry(g_accum_volumetric);
+#ifdef USE_OGL
+        // gl_ClipDistance values are ignored unless their corresponding
+        // per-distance capabilities are enabled. The volumetric vertex shader
+        // writes six distances to trim the slice AABB to the spotlight frustum.
+        for (u32 i = 0; i < 6; ++i)
+            CHK_GL(glEnable(GL_CLIP_DISTANCE0 + i));
+#endif
         //	Igor: no need to do it per sub-sample. Plain AA will go just fine.
         cmd_list.Render(D3DPT_TRIANGLELIST, 0, 0, VOLUMETRIC_SLICES * 4, 0, VOLUMETRIC_SLICES * 2);
+#ifdef USE_OGL
+        for (u32 i = 0; i < 6; ++i)
+            CHK_GL(glDisable(GL_CLIP_DISTANCE0 + i));
+#endif
 
         /*
         if( !RImplementation.o.msaa )
