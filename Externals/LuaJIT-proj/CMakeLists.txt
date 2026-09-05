@@ -15,7 +15,14 @@ set(RELVER 5)
 set(ABIVER 5.1)
 set(NODOTABIVER 51)
 
-set(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk")
+if (APPLE AND NOT CMAKE_OSX_SYSROOT)
+    execute_process(
+        COMMAND xcrun --sdk macosx --show-sdk-path
+        OUTPUT_VARIABLE CMAKE_OSX_SYSROOT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+    )
+endif()
 set(LUAJIT_DIR ${CMAKE_SOURCE_DIR}/Externals/LuaJIT/src CACHE PATH "Location of luajit sources")
 
 option(BUILD_SHARED_LIBS "Build as shared library" ON)
