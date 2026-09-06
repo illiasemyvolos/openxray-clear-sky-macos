@@ -43,4 +43,4 @@ The vertex shader already produced six clip distances, but OpenGL ignores them u
 
 ## Private local harness
 
-The development machine has an `SCS` sibling directory containing build wrappers, an `.app` launcher, game data, logs, saves, and per-run diagnostic snapshots. It is deliberately outside this repository because it contains private paths and legally acquired game files.
+The development machine has a `workspace` sibling directory containing build wrappers, an `.app` launcher, game data, logs, saves, and per-run diagnostic snapshots. It is deliberately outside this repository because it contains private paths and legally acquired game files.

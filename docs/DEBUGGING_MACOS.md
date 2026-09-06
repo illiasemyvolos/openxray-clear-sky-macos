@@ -13,8 +13,8 @@ Use a fixed scene, save, camera angle, resolution, power state, and frame limit 
 Incremental build:
 
 ```sh
-SCS_ROOT="/path/to/game mods/SCS"
-/opt/homebrew/bin/cmake --build "$SCS_ROOT/build/openxray-dev-arm64" --parallel 3
+WORKSPACE_ROOT="/path/to/STALKER CS/workspace"
+/opt/homebrew/bin/cmake --build "$WORKSPACE_ROOT/build/openxray-dev-arm64" --parallel 3
 ```
 
 ## Useful console settings
@@ -42,10 +42,10 @@ Restart between variants if the shader or render state may be cached. Disabling 
 Start LLDB from the game directory so relative filesystem paths resolve correctly:
 
 ```sh
-ENGINE_ROOT="/path/to/game mods/xray-16"
-SCS_ROOT="/path/to/game mods/SCS"
+ENGINE_ROOT="/path/to/STALKER CS/engine"
+WORKSPACE_ROOT="/path/to/STALKER CS/workspace"
 
-cd "$SCS_ROOT/play"
+cd "$WORKSPACE_ROOT/play"
 xcrun lldb -- "$ENGINE_ROOT/bin/arm64/Debug/xr_3da" \
   -cs -fsltx fsgame.ltx -nointro
 ```
@@ -73,13 +73,13 @@ The local `LLDB Dev Clear Sky.command` wrapper starts this session with the deve
 The private workspace stores runtime files under:
 
 ```text
-SCS/play/_appdata_/logs/
-SCS/play/_appdata_/launcher-dev.log
-SCS/play/_appdata_/screenshots/
-SCS/play/_appdata_/savedgames/
+workspace/play/_appdata_/logs/
+workspace/play/_appdata_/launcher-dev.log
+workspace/play/_appdata_/screenshots/
+workspace/play/_appdata_/savedgames/
 ```
 
-The local diagnostic harness creates one directory per run under `SCS/debug/sessions/`. A session can contain:
+The local diagnostic harness creates one directory per run under `workspace/debug/sessions/`. A session can contain:
 
 - `metadata.json`: binary path, engine commit, macOS version, arguments, and exit code;
 - `console.log`: combined stdout and stderr;

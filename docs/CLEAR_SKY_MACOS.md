@@ -18,12 +18,12 @@ macOS 27 is a beta system, so results can change between OS builds. The CMake de
 
 ## Workspace layout
 
-The local helper scripts expect the engine repository and private game workspace to be siblings:
+The local helper scripts expect the engine repository and private game workspace to be siblings inside one project directory:
 
 ```text
-game mods/
-├── xray-16/                    # this Git repository
-└── SCS/                        # private, ignored game workspace
+STALKER CS/
+├── engine/                     # this Git repository
+└── workspace/                  # private, ignored game workspace
     ├── build/
     │   └── openxray-dev-arm64/
     ├── play/
@@ -35,7 +35,7 @@ game mods/
     └── debug/
 ```
 
-Do not commit the `SCS` directory or any game data to this repository.
+Do not commit the `workspace` directory or any game data to this repository.
 
 ## Prerequisites
 
@@ -55,7 +55,7 @@ Clone the fork with all submodules:
 
 ```sh
 git clone --recursive --branch codex/metal-backend \
-  https://github.com/illiasemyvolos/openxray-clear-sky-macos.git xray-16
+  https://github.com/illiasemyvolos/openxray-clear-sky-macos.git engine
 ```
 
 For an existing checkout, synchronize the submodule URLs and fetch the pinned revisions:
@@ -72,12 +72,12 @@ The GameSpy submodule currently points to the companion macOS fork at [illiasemy
 The commands below match the verified local build. Set the two paths for your workspace:
 
 ```sh
-ENGINE_ROOT="/path/to/game mods/xray-16"
-SCS_ROOT="/path/to/game mods/SCS"
+ENGINE_ROOT="/path/to/STALKER CS/engine"
+WORKSPACE_ROOT="/path/to/STALKER CS/workspace"
 
 /opt/homebrew/bin/cmake \
   -S "$ENGINE_ROOT" \
-  -B "$SCS_ROOT/build/openxray-dev-arm64" \
+  -B "$WORKSPACE_ROOT/build/openxray-dev-arm64" \
   -G Ninja \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_UNITY_BUILD=OFF \
@@ -95,24 +95,24 @@ SCS_ROOT="/path/to/game mods/SCS"
 ## Build
 
 ```sh
-SCS_ROOT="/path/to/game mods/SCS"
+WORKSPACE_ROOT="/path/to/STALKER CS/workspace"
 
 /opt/homebrew/bin/cmake \
-  --build "$SCS_ROOT/build/openxray-dev-arm64" \
+  --build "$WORKSPACE_ROOT/build/openxray-dev-arm64" \
   --parallel 3
 ```
 
 The executable and engine libraries are written to:
 
 ```text
-xray-16/bin/arm64/Debug/
+engine/bin/arm64/Debug/
 ```
 
 The three-job limit is intentional for the 18 GB development machine. It leaves memory and thermal headroom while compiling the large `xrGame` target.
 
 ## Prepare the private game directory
 
-Extract your own Clear Sky 1.5.10 installation into the private `SCS` workspace and configure `play/fsgame.ltx` so the engine can find:
+Extract your own Clear Sky 1.5.10 installation into the private `workspace` directory and configure `play/fsgame.ltx` so the engine can find:
 
 - game archives or extracted game data;
 - `play/gamedata` overrides;
@@ -125,22 +125,22 @@ The working installation uses English localization. Enhanced Edition assets are 
 The verified setup launches the Debug executable through a small `.app` wrapper. Its executable is a symbolic link to the current build:
 
 ```text
-SCS/runtime/openxray-dev.app/Contents/MacOS/xr_3da
-  -> xray-16/bin/arm64/Debug/xr_3da
+workspace/runtime/openxray-dev.app/Contents/MacOS/xr_3da
+  -> engine/bin/arm64/Debug/xr_3da
 ```
 
-Create the wrapper after setting `ENGINE_ROOT` and `SCS_ROOT`:
+Create the wrapper after setting `ENGINE_ROOT` and `WORKSPACE_ROOT`:
 
 ```sh
-ENGINE_ROOT="/path/to/game mods/xray-16"
-SCS_ROOT="/path/to/game mods/SCS"
+ENGINE_ROOT="/path/to/STALKER CS/engine"
+WORKSPACE_ROOT="/path/to/STALKER CS/workspace"
 
-mkdir -p "$SCS_ROOT/runtime/openxray-dev.app/Contents/MacOS"
-mkdir -p "$SCS_ROOT/runtime/openxray-dev.app/Contents/Resources"
+mkdir -p "$WORKSPACE_ROOT/runtime/openxray-dev.app/Contents/MacOS"
+mkdir -p "$WORKSPACE_ROOT/runtime/openxray-dev.app/Contents/Resources"
 ln -sfn "$ENGINE_ROOT/bin/arm64/Debug/xr_3da" \
-  "$SCS_ROOT/runtime/openxray-dev.app/Contents/MacOS/xr_3da"
+  "$WORKSPACE_ROOT/runtime/openxray-dev.app/Contents/MacOS/xr_3da"
 
-cat > "$SCS_ROOT/runtime/openxray-dev.app/Contents/Info.plist" <<'PLIST'
+cat > "$WORKSPACE_ROOT/runtime/openxray-dev.app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -171,7 +171,7 @@ cat > "$SCS_ROOT/runtime/openxray-dev.app/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-printf 'APPL????\n' > "$SCS_ROOT/runtime/openxray-dev.app/Contents/PkgInfo"
+printf 'APPL????\n' > "$WORKSPACE_ROOT/runtime/openxray-dev.app/Contents/PkgInfo"
 ```
 
 Launching through the bundle gives the process normal macOS application activation and window behavior while keeping the binary linked to the latest incremental build.
@@ -181,10 +181,10 @@ Launching through the bundle gives the process normal macOS application activati
 Run from the configured `play` directory:
 
 ```sh
-SCS_ROOT="/path/to/game mods/SCS"
+WORKSPACE_ROOT="/path/to/STALKER CS/workspace"
 
-cd "$SCS_ROOT/play"
-"$SCS_ROOT/runtime/openxray-dev.app/Contents/MacOS/xr_3da" \
+cd "$WORKSPACE_ROOT/play"
+"$WORKSPACE_ROOT/runtime/openxray-dev.app/Contents/MacOS/xr_3da" \
   -cs -fsltx fsgame.ltx -nointro
 ```
 
