@@ -44,8 +44,9 @@ weak ordering and crashed inside `std::sort`.
 
 The Vulkan work has reached a standalone platform probe (`src/Layers/xrRenderPC_VK/`) that
 presents through MoltenVK with dynamic rendering and clean validation. It is not yet a
-renderer module. The next step is step 1 of [docs/VK_MODULE_PLAN.md](docs/VK_MODULE_PLAN.md):
-replacing `std::array<RendererModule*, 2>`, which is spelled out in seven places.
+renderer module. Step 1 of [docs/VK_MODULE_PLAN.md](docs/VK_MODULE_PLAN.md) is done: the
+renderer registry is a `xr_vector<RendererModule*>` rather than a fixed-size array. The next
+step is step 2, the generated interface stubs.
 
 ## Building
 

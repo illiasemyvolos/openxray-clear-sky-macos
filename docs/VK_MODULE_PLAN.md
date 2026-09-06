@@ -38,24 +38,19 @@ header, including `IRender_Light`, `IRender_Glow` and `IRender_ObjectSpecific`, 
 implemented by objects the renderer hands out rather than by the renderer itself. The correct
 count for `IRender` is 90.
 
-## The hardcoded module count
+## The hardcoded module count (done)
 
-The registry is a fixed-size array, and its size appears in seven places:
+The registry used to be a fixed-size `std::array<RendererModule*, 2>`, and its size was
+spelled out in seven places: the definition in `src/xr_3da/entry_point.cpp` plus the
+declaration and definition of `CEngineAPI::CreateRendererList`, `CEngine::Initialize` and
+`CApplication::CApplication`. Adding a third module meant touching all seven.
 
-```
-src/xr_3da/entry_point.cpp:24     std::array<RendererModule*, 2> s_render_modules
-src/xrEngine/EngineAPI.h:81       CreateRendererList(const std::array<RendererModule*, 2>&)
-src/xrEngine/Engine.h:36          Initialize(GameModule*, const std::array<RendererModule*, 2>&)
-src/xrEngine/x_ray.h:44           CApplication(pcstr, GameModule*, const std::array<...2>&)
-src/xrEngine/x_ray.cpp:206        CApplication::CApplication(...)
-src/xrEngine/Engine.cpp:64        CEngine::Initialize(...)
-src/xrEngine/EngineAPI.cpp:126    CEngineAPI::CreateRendererList(...)
-```
-
-Adding a third module means touching all seven. The tidy fix is a `std::span<RendererModule*>`
-or a `xr_vector`, which also removes the `#ifdef XR_PLATFORM_WINDOWS` hole that currently
-leaves a null entry in the array on non-Windows builds. That is a change worth proposing
-upstream on its own, separately from any Vulkan work.
+It is now a `xr_vector<RendererModule*>`. The project is C++17, so `std::span` was not
+available; the vector is built as a local in `entry_point`, not at namespace scope, so nothing
+allocates through `xrMemory` before xrCore is up. Dropping the fixed size also closed the
+`#ifdef XR_PLATFORM_WINDOWS` hole that left a null trailing entry on non-Windows builds -
+where the dedicated-server path previously indexed `modules[0]` it now checks the vector is
+non-empty first. No Vulkan code is involved, so this is worth proposing upstream on its own.
 
 ## Staging
 
