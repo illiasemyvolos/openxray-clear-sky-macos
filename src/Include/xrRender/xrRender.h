@@ -5,6 +5,7 @@
 #ifdef XRAY_STATIC_BUILD
 #    define XRRENDER_R4_API
 #    define XRRENDER_GL_API
+#    define XRRENDER_VK_API
 #else
 #    ifdef XRRENDER_R4_EXPORTS
 #        define XRRENDER_R4_API XR_EXPORT
@@ -15,6 +16,11 @@
 #        define XRRENDER_GL_API XR_EXPORT
 #    else
 #        define XRRENDER_GL_API XR_IMPORT
+#    endif
+#    ifdef XRRENDER_VK_EXPORTS
+#        define XRRENDER_VK_API XR_EXPORT
+#    else
+#        define XRRENDER_VK_API XR_IMPORT
 #    endif
 #endif
 
@@ -30,4 +36,10 @@ namespace render_gl
 {
 XRRENDER_GL_API RendererModule* GetRendererModule();
 }
+#ifdef XRAY_BUILD_VK
+namespace render_vk
+{
+XRRENDER_VK_API RendererModule* GetRendererModule();
+}
+#endif
 } // namespace xray::render

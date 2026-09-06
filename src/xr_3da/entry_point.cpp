@@ -48,6 +48,9 @@ int entry_point(pcstr commandLine)
         xray::render::render_r4::GetRendererModule(),
 #endif
         xray::render::render_gl::GetRendererModule(),
+#ifdef XRAY_BUILD_VK
+        xray::render::render_vk::GetRendererModule(),
+#endif
     };
 
     CApplication app{ commandLine, game, render_modules };

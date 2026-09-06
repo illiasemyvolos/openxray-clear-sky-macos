@@ -33,6 +33,11 @@ target_link_libraries(xr_3da
     xrGame
 )
 
+if (XRAY_BUILD_VK)
+    target_link_libraries(xr_3da PRIVATE xrRender_VK)
+    target_compile_definitions(xr_3da PRIVATE XRAY_BUILD_VK)
+endif()
+
 set_target_properties(xr_3da PROPERTIES
     PREFIX ""
 )
