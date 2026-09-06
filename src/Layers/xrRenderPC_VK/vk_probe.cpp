@@ -7,8 +7,15 @@
 // comes after, on top of code that is known to work.
 //
 // It answers: does the loader find a driver, does SDL hand us a surface that
-// MoltenVK accepts, does a swapchain present, and do the validation layers
+// the driver accepts, does a swapchain present, and do the validation layers
 // load and stay quiet.
+//
+// The target is Vulkan 1.3, using dynamic rendering rather than VkRenderPass
+// and VkFramebuffer objects. macOS has no old-driver floor to support - both
+// drivers shipped in the SDK are conformant at 1.4 - and dynamic rendering is
+// the closer match to Metal, where a render pass is described when the encoder
+// is created rather than baked into an object ahead of time. See
+// docs/BACKEND_OPTIONS.md for the measured baseline.
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
@@ -16,9 +23,9 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <optional>
-#include <string>
 #include <vector>
 
 namespace
@@ -37,6 +44,8 @@ bool g_validation =
 #else
     true;
 #endif
+
+int g_forced_device = -1; // --device N, to compare drivers without env vars
 
 #define VK_CHECK(expr)                                                            \
     do                                                                            \
@@ -104,6 +113,18 @@ bool device_has_extension(VkPhysicalDevice device, const char* name)
     return false;
 }
 
+uint32_t instance_version()
+{
+    auto enumerate = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(
+        nullptr, "vkEnumerateInstanceVersion");
+    if (!enumerate) // a 1.0 loader has no way to report anything else
+        return VK_API_VERSION_1_0;
+    uint32_t version = VK_API_VERSION_1_0;
+    if (enumerate(&version) != VK_SUCCESS)
+        return VK_API_VERSION_1_0;
+    return version;
+}
+
 const char* device_type_name(VkPhysicalDeviceType type)
 {
     switch (type)
@@ -114,6 +135,32 @@ const char* device_type_name(VkPhysicalDeviceType type)
     case VK_PHYSICAL_DEVICE_TYPE_CPU:            return "cpu";
     default:                                     return "other";
     }
+}
+
+// Query through the 1.1 properties2 chain so the driver identifies itself the
+// way vulkaninfo reports it, rather than as an opaque driverVersion integer.
+void describe_device(VkPhysicalDevice device, uint32_t index)
+{
+    VkPhysicalDeviceDriverProperties driver{};
+    driver.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES;
+
+    VkPhysicalDeviceProperties2 props{};
+    props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    props.pNext = &driver;
+    vkGetPhysicalDeviceProperties2(device, &props);
+
+    const VkPhysicalDeviceProperties& base = props.properties;
+    std::printf("  [%u] %s (%s)\n", index, base.deviceName,
+                device_type_name(base.deviceType));
+    std::printf("        api %u.%u.%u, driver %s %s\n",
+                VK_API_VERSION_MAJOR(base.apiVersion),
+                VK_API_VERSION_MINOR(base.apiVersion),
+                VK_API_VERSION_PATCH(base.apiVersion),
+                driver.driverName[0] ? driver.driverName : "(unnamed)",
+                driver.driverInfo);
+    std::printf("        conformance %u.%u.%u.%u\n",
+                driver.conformanceVersion.major, driver.conformanceVersion.minor,
+                driver.conformanceVersion.subminor, driver.conformanceVersion.patch);
 }
 
 struct Probe
@@ -132,8 +179,6 @@ struct Probe
     VkExtent2D swapchain_extent{};
     std::vector<VkImage> images;
     std::vector<VkImageView> views;
-    std::vector<VkFramebuffer> framebuffers;
-    VkRenderPass render_pass{};
 
     VkCommandPool command_pool{};
     std::vector<VkCommandBuffer> command_buffers;
@@ -146,7 +191,6 @@ struct Probe
     bool create_device();
     bool create_swapchain();
     void destroy_swapchain();
-    bool create_render_pass();
     bool create_frame_resources();
     bool draw(uint32_t frame, float t, bool& needs_resize);
     void shutdown();
@@ -187,14 +231,29 @@ bool Probe::create_instance()
         }
     }
 
+    // Ask for as much as the loader offers, capped at the newest version these
+    // headers know. A driver reports its own apiVersion capped at what the
+    // instance asked for, so requesting too little hides what it can actually
+    // do - MoltenVK reports 1.2 to a 1.2 instance and 1.4 to a 1.4 one.
+    const uint32_t available = instance_version();
+    const uint32_t requested = std::min<uint32_t>(available, VK_API_VERSION_1_4);
+    std::printf("instance: loader offers %u.%u.%u, requesting %u.%u\n",
+                VK_API_VERSION_MAJOR(available), VK_API_VERSION_MINOR(available),
+                VK_API_VERSION_PATCH(available), VK_API_VERSION_MAJOR(requested),
+                VK_API_VERSION_MINOR(requested));
+
+    if (requested < VK_API_VERSION_1_3)
+    {
+        std::fprintf(stderr, "need a Vulkan 1.3 loader for dynamic rendering\n");
+        return false;
+    }
+
     VkApplicationInfo app{};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app.pApplicationName = "OpenXRay Vulkan probe";
     app.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
     app.pEngineName = "X-Ray";
-    // 1.2 is the floor the renderer will target. Asking for more here would
-    // reject drivers we still want to compare against.
-    app.apiVersion = VK_API_VERSION_1_2;
+    app.apiVersion = requested;
 
     VkInstanceCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -245,12 +304,15 @@ bool Probe::pick_device()
 
     for (uint32_t i = 0; i < count; ++i)
     {
-        VkPhysicalDeviceProperties props{};
-        vkGetPhysicalDeviceProperties(devices[i], &props);
-        std::printf("  [%u] %s (%s, API %u.%u.%u, driver 0x%08x)\n", i, props.deviceName,
-                    device_type_name(props.deviceType),
-                    VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion),
-                    VK_VERSION_PATCH(props.apiVersion), props.driverVersion);
+        describe_device(devices[i], i);
+
+        VkPhysicalDeviceProperties base{};
+        vkGetPhysicalDeviceProperties(devices[i], &base);
+        if (base.apiVersion < VK_API_VERSION_1_3)
+        {
+            std::printf("        skipped: below Vulkan 1.3\n");
+            continue;
+        }
 
         uint32_t family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(devices[i], &family_count, nullptr);
@@ -265,7 +327,8 @@ bool Probe::pick_device()
             // transfers. Every Apple GPU satisfies this.
             if (present && (families[f].queueFlags & VK_QUEUE_GRAPHICS_BIT))
             {
-                if (!chosen)
+                const bool wanted = g_forced_device < 0 || uint32_t(g_forced_device) == i;
+                if (wanted && !chosen)
                 {
                     chosen = i;
                     chosen_queue = f;
@@ -277,7 +340,7 @@ bool Probe::pick_device()
 
     if (!chosen)
     {
-        std::fprintf(stderr, "no device with a graphics queue that can present\n");
+        std::fprintf(stderr, "no suitable device with a graphics queue that can present\n");
         return false;
     }
     physical = devices[*chosen];
@@ -291,6 +354,20 @@ bool Probe::pick_device()
 
 bool Probe::create_device()
 {
+    VkPhysicalDeviceVulkan13Features supported13{};
+    supported13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    VkPhysicalDeviceFeatures2 supported{};
+    supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    supported.pNext = &supported13;
+    vkGetPhysicalDeviceFeatures2(physical, &supported);
+
+    if (!supported13.dynamicRendering)
+    {
+        std::fprintf(stderr, "device does not support dynamicRendering\n");
+        return false;
+    }
+    std::printf("dynamic rendering: available, enabling\n");
+
     const float priority = 1.0f;
     VkDeviceQueueCreateInfo queue_info{};
     queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -303,8 +380,17 @@ bool Probe::create_device()
     if (device_has_extension(physical, "VK_KHR_portability_subset"))
         extensions.push_back("VK_KHR_portability_subset");
 
+    VkPhysicalDeviceVulkan13Features enable13{};
+    enable13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    enable13.dynamicRendering = VK_TRUE;
+
+    VkPhysicalDeviceFeatures2 enable{};
+    enable.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    enable.pNext = &enable13;
+
     VkDeviceCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    info.pNext = &enable; // pEnabledFeatures must stay null when this chain is used
     info.queueCreateInfoCount = 1;
     info.pQueueCreateInfos = &queue_info;
     info.enabledExtensionCount = uint32_t(extensions.size());
@@ -393,60 +479,8 @@ bool Probe::create_swapchain()
     return true;
 }
 
-bool Probe::create_render_pass()
-{
-    VkAttachmentDescription color{};
-    color.format = swapchain_format;
-    color.samples = VK_SAMPLE_COUNT_1_BIT;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    color.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    VkAttachmentReference ref{ 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL };
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &ref;
-
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    VkRenderPassCreateInfo info{};
-    info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    info.attachmentCount = 1;
-    info.pAttachments = &color;
-    info.subpassCount = 1;
-    info.pSubpasses = &subpass;
-    info.dependencyCount = 1;
-    info.pDependencies = &dependency;
-
-    VK_CHECK(vkCreateRenderPass(device, &info, nullptr, &render_pass));
-    return true;
-}
-
 bool Probe::create_frame_resources()
 {
-    framebuffers.resize(views.size());
-    for (size_t i = 0; i < views.size(); ++i)
-    {
-        VkFramebufferCreateInfo info{};
-        info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        info.renderPass = render_pass;
-        info.attachmentCount = 1;
-        info.pAttachments = &views[i];
-        info.width = swapchain_extent.width;
-        info.height = swapchain_extent.height;
-        info.layers = 1;
-        VK_CHECK(vkCreateFramebuffer(device, &info, nullptr, &framebuffers[i]));
-    }
-
     if (command_pool == VK_NULL_HANDLE)
     {
         VkCommandPoolCreateInfo pool{};
@@ -494,9 +528,6 @@ void Probe::destroy_swapchain()
     for (auto semaphore : rendered)
         vkDestroySemaphore(device, semaphore, nullptr);
     rendered.clear();
-    for (auto framebuffer : framebuffers)
-        vkDestroyFramebuffer(device, framebuffer, nullptr);
-    framebuffers.clear();
     for (auto view : views)
         vkDestroyImageView(device, view, nullptr);
     views.clear();
@@ -535,21 +566,61 @@ bool Probe::draw(uint32_t frame, float t, bool& needs_resize)
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(cmd, &begin));
 
+    const VkImageSubresourceRange whole_image{ VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+    // Without a render pass there is nothing to perform the implicit layout
+    // transitions, so they become ours. Acquire hands the image over in an
+    // undefined layout; present needs it in PRESENT_SRC_KHR.
+    VkImageMemoryBarrier to_attachment{};
+    to_attachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    to_attachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    to_attachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    to_attachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    to_attachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    to_attachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    to_attachment.image = images[index];
+    to_attachment.subresourceRange = whole_image;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr,
+                         0, nullptr, 1, &to_attachment);
+
     // Animated so that a frozen window is obvious at a glance.
     VkClearValue clear{};
     clear.color = { { 0.10f + 0.10f * SDL_sinf(t),
                       0.12f + 0.10f * SDL_sinf(t * 0.7f + 2.0f),
                       0.18f + 0.12f * SDL_sinf(t * 0.4f + 4.0f), 1.0f } };
 
-    VkRenderPassBeginInfo pass{};
-    pass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    pass.renderPass = render_pass;
-    pass.framebuffer = framebuffers[index];
-    pass.renderArea.extent = swapchain_extent;
-    pass.clearValueCount = 1;
-    pass.pClearValues = &clear;
-    vkCmdBeginRenderPass(cmd, &pass, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdEndRenderPass(cmd);
+    VkRenderingAttachmentInfo color{};
+    color.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    color.imageView = views[index];
+    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color.clearValue = clear;
+
+    VkRenderingInfo rendering{};
+    rendering.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    rendering.renderArea.extent = swapchain_extent;
+    rendering.layerCount = 1;
+    rendering.colorAttachmentCount = 1;
+    rendering.pColorAttachments = &color;
+
+    vkCmdBeginRendering(cmd, &rendering);
+    vkCmdEndRendering(cmd);
+
+    VkImageMemoryBarrier to_present{};
+    to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    to_present.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    to_present.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    to_present.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    to_present.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    to_present.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    to_present.image = images[index];
+    to_present.subresourceRange = whole_image;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr,
+                         0, nullptr, 1, &to_present);
+
     VK_CHECK(vkEndCommandBuffer(cmd));
 
     const VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -594,7 +665,6 @@ void Probe::shutdown()
             vkDestroyFence(device, in_flight[i], nullptr);
         }
         vkDestroyCommandPool(device, command_pool, nullptr);
-        vkDestroyRenderPass(device, render_pass, nullptr);
         vkDestroyDevice(device, nullptr);
     }
     if (messenger)
@@ -628,6 +698,8 @@ int main(int argc, char** argv)
             g_validation = false;
         else if (std::strcmp(argv[i], "--validation") == 0)
             g_validation = true;
+        else if (std::strcmp(argv[i], "--device") == 0 && i + 1 < argc)
+            g_forced_device = std::atoi(argv[++i]);
     }
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -654,7 +726,7 @@ int main(int argc, char** argv)
     if (probe.create_instance() &&
         SDL_Vulkan_CreateSurface(probe.window, probe.instance, &probe.surface) &&
         probe.pick_device() && probe.create_device() && probe.create_swapchain() &&
-        probe.create_render_pass() && probe.create_frame_resources())
+        probe.create_frame_resources())
     {
         std::printf("presenting; close the window to finish\n");
         const uint64_t start = SDL_GetTicks64();
@@ -695,8 +767,9 @@ int main(int argc, char** argv)
             }
             ++frame;
         }
-        std::printf("presented %u frames over %.1f s\n", frame,
-                    float(SDL_GetTicks64() - start) / 1000.0f);
+        const float seconds = float(SDL_GetTicks64() - start) / 1000.0f;
+        std::printf("presented %u frames over %.1f s (%.1f fps)\n", frame, seconds,
+                    seconds > 0.0f ? float(frame) / seconds : 0.0f);
     }
     else if (!probe.surface && probe.instance)
     {

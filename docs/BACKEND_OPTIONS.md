@@ -134,8 +134,15 @@ Two consequences for the design:
   `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR` flag set, or MoltenVK is not enumerated
   at all. `VK_KHR_portability_subset` must then be enabled on the device.
 
-The platform probe deliberately asks for 1.2 and uses a classic render pass, so that its first
-run tests the smallest possible surface. Raise the target once it presents.
+A driver reports its own `apiVersion` capped at what the instance asked for, and the two
+drivers differ in how they treat that. Asking for 1.2, MoltenVK reported itself as `1.2.357`
+while KosmicKrisp still reported `1.4.359`; asking for 1.4, MoltenVK reports `1.4.357`. So an
+over-cautious `VkApplicationInfo::apiVersion` does not merely forbid newer features, it hides
+what the driver can do, and it hides it inconsistently between drivers. Query
+`vkEnumerateInstanceVersion` and ask for what is actually there.
+
+The probe targets 1.3 and uses dynamic rendering. Both drivers advertise `dynamicRendering`,
+and validation stays silent over the manual layout barriers it requires.
 
 ## Option D — a native Metal backend (`xrRender_MTL`)
 
