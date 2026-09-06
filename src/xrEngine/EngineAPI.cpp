@@ -123,7 +123,7 @@ void CEngineAPI::Destroy()
     XRC.r_clear_compact();
 }
 
-void CEngineAPI::CreateRendererList(const std::array<RendererModule*, 2>& modules)
+void CEngineAPI::CreateRendererList(const xr_vector<RendererModule*>& modules)
 {
     if (!VidQualityToken.empty())
         return;
@@ -156,7 +156,7 @@ void CEngineAPI::CreateRendererList(const std::array<RendererModule*, 2>& module
 
     if (GEnv.isDedicatedServer)
     {
-        R_ASSERT2(loadRenderer(modules[0]), "Dedicated server needs xrRender to work");
+        R_ASSERT2(!modules.empty() && loadRenderer(modules.front()), "Dedicated server needs xrRender to work");
     }
     else
     {

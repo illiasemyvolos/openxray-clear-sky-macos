@@ -61,7 +61,7 @@ void CheckAndSetupRenderer()
 
 extern void msCreate(pcstr name);
 
-void CEngine::Initialize(GameModule* game, const std::array<RendererModule*, 2>& modules)
+void CEngine::Initialize(GameModule* game, const xr_vector<RendererModule*>& modules)
 {
     ZoneScoped;
 #ifdef DEBUG

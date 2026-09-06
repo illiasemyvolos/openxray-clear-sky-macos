@@ -21,14 +21,6 @@ XR_EXPORT u32 NvOptimusEnablement = 0x00000001; // NVIDIA Optimus
 XR_EXPORT u32 AmdPowerXpressRequestHighPerformance = 0x00000001; // PowerXpress or Hybrid Graphics
 }
 
-std::array<RendererModule*, 2> s_render_modules =
-{
-#ifdef XR_PLATFORM_WINDOWS
-    xray::render::render_r4::GetRendererModule(),
-#endif
-    xray::render::render_gl::GetRendererModule(),
-};
-
 struct tracy_raii
 {
     ~tracy_raii()
@@ -48,7 +40,17 @@ int entry_point(pcstr commandLine)
     tracy_raii raii;
     auto* game = strstr(commandLine, "-nogame") ? nullptr : &xrGame;
 
-    CApplication app{ commandLine, game, s_render_modules };
+    // The first entry is what a dedicated server falls back to, so keep xrRender ahead of the
+    // rest. Built here rather than at namespace scope so nothing allocates before xrCore is up.
+    const xr_vector<RendererModule*> render_modules
+    {
+#ifdef XR_PLATFORM_WINDOWS
+        xray::render::render_r4::GetRendererModule(),
+#endif
+        xray::render::render_gl::GetRendererModule(),
+    };
+
+    CApplication app{ commandLine, game, render_modules };
 
     return app.Run();
 }

@@ -5,8 +5,7 @@
 //****************************************************************************
 #pragma once
 
-#include <array>
-
+#include "xrCommon/xr_vector.h"
 #include "xrCore/clsid.h"
 #include "xrEngine/Engine.h"
 
@@ -78,7 +77,7 @@ public:
     ~CEngineAPI();
 
     // Call it in the main thread
-    void CreateRendererList(const std::array<RendererModule*, 2>& modules);
+    void CreateRendererList(const xr_vector<RendererModule*>& modules);
     void Initialize(GameModule* game);
     void Destroy();
 };
