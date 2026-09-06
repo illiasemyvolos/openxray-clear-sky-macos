@@ -56,6 +56,19 @@ Exit condition: the OpenGL build is reproducible and can serve as a visual refer
 
 Exit condition: a native ARM64 OpenXRay window presents frames through MoltenVK and Metal.
 
+**Status.** The platform half is done and the renderer half is not.
+`src/Layers/xrRenderPC_VK/vk_probe.cpp`, built by `XRAY_BUILD_VK=ON`, opens an SDL Vulkan
+window on Apple Silicon, selects a device and queue, creates a swapchain and presents
+animated frames through MoltenVK, with `VK_LAYER_KHRONOS_validation` enabled in Debug. It is
+a standalone executable and links nothing from the engine: `IRender` has 112 pure virtual
+methods, and stubbing them before knowing whether a surface could be presented would have
+buried the risk under boilerplate.
+
+Still open in this phase: registering a `RendererModule`, and therefore presenting from the
+engine's own window rather than the probe's. The measured driver baseline is recorded in
+[BACKEND_OPTIONS.md](BACKEND_OPTIONS.md); the shader route is in
+[SHADER_TRANSLATION_PROBE.md](SHADER_TRANSLATION_PROBE.md).
+
 ### 2. Hardware and command backend
 
 - Implement device capability discovery.

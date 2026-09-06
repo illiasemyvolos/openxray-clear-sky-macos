@@ -151,6 +151,15 @@ if (NOT WIN32)
     find_package(mimalloc NAMES mimalloc2 mimalloc2.0 mimalloc)
 endif()
 
+# Experimental Vulkan renderer. Off by default: the OpenGL renderer stays the
+# only one built unless XRAY_BUILD_VK is set. On macOS the loader, the headers
+# and the validation layers come from the LunarG SDK, so point CMAKE_PREFIX_PATH
+# or the VULKAN_SDK environment variable at <sdk>/macOS before configuring.
+if (XRAY_BUILD_VK)
+    find_package(Vulkan REQUIRED)
+    message(STATUS "Vulkan: ${Vulkan_LIBRARY} (headers ${Vulkan_INCLUDE_DIR})")
+endif()
+
 # Memory allocator option
 if (mimalloc_FOUND)
     set(MEMORY_ALLOCATOR "mimalloc" CACHE STRING "Use specific memory allocator (mimalloc/standard)")
