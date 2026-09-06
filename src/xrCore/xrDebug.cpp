@@ -25,15 +25,20 @@
 #   include "Debug/dxerr.h"
 #endif
 
-#if defined(XR_PLATFORM_LINUX) || defined(XR_PLATFORM_APPLE) || defined(XR_PLATFORM_BSD)
+// Darwin and the BSDs answer "am I traced?" through sysctl. They must not use the ptrace
+// probe below: PT_TRACE_ME does not report a debugger, it *requests* one, leaving the process
+// flagged P_TRACED with a parent that never waits on it. Such a process stops on the next
+// signal and never resumes - SIGKILL cannot complete it and a debugger cannot attach, because
+// the kernel already considers it traced. Only a reboot clears that.
+#if defined(XR_PLATFORM_APPLE) || defined(XR_PLATFORM_BSD)
+#   include <sys/sysctl.h>
+#   include <sys/types.h>
+#   include <unistd.h>
+#   define SYSCTL_TRACED_AVAILABLE
+#elif defined(XR_PLATFORM_LINUX)
 #   if __has_include(<sys/ptrace.h>)
 #       include <sys/ptrace.h>
 #       define PTRACE_AVAILABLE
-
-#       if defined(XR_PLATFORM_APPLE) || defined(XR_PLATFORM_BSD)
-#           define PTRACE_TRACEME PT_TRACE_ME
-#           define PTRACE_DETACH PT_DETACH
-#       endif
 #   endif
 #endif
 
@@ -489,6 +494,19 @@ bool xrDebug::DebuggerIsPresent()
 {
 #ifdef XR_PLATFORM_WINDOWS
     return IsDebuggerPresent();
+#elif defined(SYSCTL_TRACED_AVAILABLE)
+    // Apple Technical Q&A QA1361. Read-only: unlike the ptrace probe it cannot change our
+    // own trace state, so it is safe to call from an assertion path.
+    struct kinfo_proc info;
+    info.kp_proc.p_flag = 0;
+
+    int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid() };
+    size_t size = sizeof(info);
+
+    if (sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, nullptr, 0) != 0)
+        return false;
+
+    return (info.kp_proc.p_flag & P_TRACED) != 0;
 #elif defined(PTRACE_AVAILABLE)
     if (ptrace(PTRACE_TRACEME, 0, 0, 0) == -1)
         return true;
