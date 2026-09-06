@@ -23,6 +23,8 @@ Project documentation:
 - [Build and run Clear Sky on macOS](docs/CLEAR_SKY_MACOS.md)
 - [Debugging and reproducible graphics tests](docs/DEBUGGING_MACOS.md)
 - [Metal renderer roadmap](docs/METAL_ROADMAP.md)
+- [Renderer backend options on macOS](docs/BACKEND_OPTIONS.md)
+- [Shader translation probe](docs/SHADER_TRANSLATION_PROBE.md)
 - [Current macOS changes and known limitations](docs/MACOS_CHANGES.md)
 
 ### Legal and game data
