@@ -63,9 +63,10 @@ animated frames through MoltenVK at the display refresh rate, with
 `VK_LAYER_KHRONOS_validation` enabled in Debug and silent. It targets Vulkan 1.3 and uses
 dynamic rendering, so there are no `VkRenderPass` or `VkFramebuffer` objects and the image
 layout transitions are explicit barriers - the same shape the work takes in Metal. It is
-a standalone executable and links nothing from the engine: `IRender` has 112 pure virtual
-methods, and stubbing them before knowing whether a surface could be presented would have
-buried the risk under boilerplate.
+a standalone executable and links nothing from the engine: installing a renderer module
+means implementing 165 methods across four interfaces (see
+[VK_MODULE_PLAN.md](VK_MODULE_PLAN.md)), and doing that before knowing whether a surface
+could be presented would have buried the risk under boilerplate.
 
 Still open in this phase: registering a `RendererModule`, and therefore presenting from the
 engine's own window rather than the probe's. The measured driver baseline is recorded in

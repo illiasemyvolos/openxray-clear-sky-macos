@@ -1,9 +1,9 @@
 // Platform spike for the Vulkan renderer, phase 1 of docs/METAL_ROADMAP.md.
 //
 // Deliberately standalone: it links SDL2 and Vulkan and nothing from the
-// engine. IRender has 112 pure virtual methods, and stubbing them to find out
-// whether a swapchain can be presented would put the risky part behind a wall
-// of boilerplate. This proves the platform first; the RendererModule wiring
+// engine. Installing a renderer module means implementing 165 methods across
+// four interfaces, and doing that to find out whether a swapchain can be
+// presented would put the risky part behind a wall of boilerplate. This proves the platform first; the RendererModule wiring
 // comes after, on top of code that is known to work.
 //
 // It answers: does the loader find a driver, does SDL hand us a surface that

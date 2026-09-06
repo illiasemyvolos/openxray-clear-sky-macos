@@ -25,6 +25,7 @@ Project documentation:
 - [Metal renderer roadmap](docs/METAL_ROADMAP.md)
 - [Renderer backend options on macOS](docs/BACKEND_OPTIONS.md)
 - [Shader translation probe](docs/SHADER_TRANSLATION_PROBE.md)
+- [Wiring the Vulkan renderer into the engine](docs/VK_MODULE_PLAN.md)
 - [Current macOS changes and known limitations](docs/MACOS_CHANGES.md)
 
 ### Legal and game data

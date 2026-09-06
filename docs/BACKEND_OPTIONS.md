@@ -24,7 +24,7 @@ size of the thing a second backend has to replace.
 Three facts matter more than the line counts:
 
 - **The extension point already exists.** `RendererModule` (`src/xrEngine/EngineAPI.h`)
-  plus `IRender` (`src/xrEngine/Render.h`, 112 pure virtuals) is a contract that is
+  plus `IRender` (`src/xrEngine/Render.h`, 90 pure virtuals) is a contract that is
   already implemented twice — GL and DX11. Modules are statically linked and selected
   by name through the `renderer` console variable; `src/xr_3da/entry_point.cpp` holds
   the registry. Adding a third module changes four lines of registration.
