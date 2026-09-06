@@ -12,6 +12,19 @@
 
 > **Unofficial fork:** This repository contains experimental macOS and Metal backend work based on OpenXRay. It is not affiliated with or endorsed by the OpenXRay team or GSC Game World. Game assets are not included.
 
+## Clear Sky macOS fork
+
+This fork is the development base for running **S.T.A.L.K.E.R.: Clear Sky 1.5.10** natively on Apple Silicon and moving the renderer toward Metal. The current playable baseline still uses OpenGL; a Metal renderer has not been implemented yet.
+
+Tested locally on a MacBook Pro with Apple M3 Pro and 18 GB of unified memory. The initial macOS fixes cover the ARM64 Debug build, Apple OpenGL depth-only shadow passes, volumetric spotlight clipping, and GameSpy reference counting.
+
+Project documentation:
+
+- [Build and run Clear Sky on macOS](docs/CLEAR_SKY_MACOS.md)
+- [Debugging and reproducible graphics tests](docs/DEBUGGING_MACOS.md)
+- [Metal renderer roadmap](docs/METAL_ROADMAP.md)
+- [Current macOS changes and known limitations](docs/MACOS_CHANGES.md)
+
 **OpenXRay** is an improved version of the X-Ray Engine, the game engine used in the world-famous S.T.A.L.K.E.R. game series by GSC Game World.
 
 This is a fan-made project not affiliated with GSC Game World in any way.
