@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+#include <functional>
+
 #include "xrEngine/IRenderable.h"
 #include "xrEngine/CustomHUD.h"
 
@@ -31,9 +33,21 @@ bool cmp_ssa(const T &lhs, const T &rhs)
 template <typename T>
 bool cmp_pass(const T& left, const T& right)
 {
-    if (left->first->equal(*right->first))
-        return false;
-    return left->second.ssa >= right->second.ssa;
+    // std::sort requires a strict weak ordering. The previous version was not
+    // one: for two passes that are not equal() but share an SSA value it
+    // returned true for cmp(a, b) *and* for cmp(b, a), because it compared
+    // with >=. Ties are not rare - every pass of a multi-pass shader is fed
+    // the same SSA by the graph builder, so sibling buckets tie constantly.
+    // libc++ then runs its unguarded insertion pass off the front of the
+    // array and dereferences whatever is in front of it.
+    if (left->second.ssa != right->second.ssa)
+        return left->second.ssa > right->second.ssa;
+
+    // Deterministic, transitive tie-break on the map key. The old equal()
+    // short-circuit could not group content-identical passes anyway, since
+    // std::sort is not stable, and switching between passes that compare
+    // equal costs nothing - so it is not worth an invalid ordering.
+    return std::less<>{}(left->first, right->first);
 }
 
 void R_dsgraph_structure::render_graph(u32 _priority)
