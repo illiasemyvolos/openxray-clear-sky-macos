@@ -38,9 +38,11 @@ sessions, and the `.command` scripts that configure, build, launch and profile. 
 
 Playable OpenGL baseline on Apple M3 Pro. Four fork-specific engine changes: a null pixel
 shader fallback for depth-only passes, explicit `GL_CLIP_DISTANCE` for volumetric spotlights,
-an SDK-path fix in the LuaJIT project, and readable GL error names. Plus one upstream bug fix
+an SDK-path fix in the LuaJIT project, and readable GL error names. Plus two upstream bug fixes
 worth sending back: `cmp_pass` in `src/Layers/xrRender/r__dsgraph_render.cpp` was not a strict
-weak ordering and crashed inside `std::sort`.
+weak ordering and crashed inside `std::sort`, and `xrDebug::DebuggerIsPresent` used
+`PT_TRACE_ME` on Darwin, which left the process traced and unkillable instead of detecting a
+debugger.
 
 The Vulkan work has reached a standalone platform probe (`src/Layers/xrRenderPC_VK/`) that
 presents through MoltenVK with dynamic rendering and clean validation. It is not yet a

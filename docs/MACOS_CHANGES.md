@@ -49,6 +49,35 @@ opaque geometry, which affects state-change counts rather than output.
 This is an upstream defect, not a macOS one. It reproduces on the prebuilt
 OpenXRay 1.6 macOS build as well, and is a candidate to send upstream.
 
+## Debugger detection on Darwin
+
+`xrDebug::DebuggerIsPresent` in `src/xrCore/xrDebug.cpp` probed for a debugger by calling
+`ptrace(PTRACE_TRACEME)` and then `ptrace(PTRACE_DETACH)`, with `PTRACE_TRACEME` aliased to
+`PT_TRACE_ME` on Apple and the BSDs. That is the Linux idiom, and on Darwin it is actively
+harmful: `PT_TRACE_ME` does not report whether a debugger is attached, it asks to *become*
+traced by the parent. The detach that follows does not reliably undo it.
+
+The process is then flagged `P_TRACED` with a tracer - the launching shell - that never waits
+on it. The kernel stops such a process on the next signal and nothing resumes it. It sits in
+`TX`, `SIGKILL` cannot complete its teardown, and a debugger cannot take over because the
+kernel already considers it traced: `lldb` refuses with "tried to attach to process already
+being debugged", as root as well. Nothing short of a reboot clears it.
+
+It is reachable on macOS from the abort branch of `xrDebug::Fail` and from `xrDebug::DoExit`.
+Because X-Ray installs `handler_base` for `SIGTERM` on every thread it spawns, an ordinary
+`kill` of the game is enough to enter that path.
+
+Darwin and the BSDs now use the read-only `sysctl` query from Apple Technical Q&A QA1361,
+checking `P_TRACED` in `kinfo_proc`. It cannot alter the caller's own trace state, so it is
+safe on an assertion path. Linux keeps the `ptrace` probe.
+
+Verified by sending `SIGTERM` to a running Debug build on Apple M3 Pro, macOS 27: before the
+change the process wedged in `TX` and survived `SIGKILL`, `SIGCONT` and `sudo lldb`; after it,
+the same signal leaves the process in `SN` and `kill -9` ends it.
+
+This is an upstream defect, not a macOS-only concern - it affects every BSD target - and is a
+candidate to send upstream.
+
 ## Verified behavior
 
 - Clear Sky 1.5.10 reaches gameplay on Apple M3 Pro.
