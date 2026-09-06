@@ -25,6 +25,20 @@ Project documentation:
 - [Metal renderer roadmap](docs/METAL_ROADMAP.md)
 - [Current macOS changes and known limitations](docs/MACOS_CHANGES.md)
 
+### Legal and game data
+
+This repository distributes engine source code only. It contains no S.T.A.L.K.E.R. game content: no installers, no `.db*`/`.xdb` archives, and no extracted textures, models, audio, scripts, level data, or localization files. A build made from this source requires your own legally acquired copy of S.T.A.L.K.E.R.: Clear Sky 1.5.10.
+
+This work is a macOS branch of the OpenXRay engine, not a re-release or reimplementation of the game.
+
+Licensing follows the layers already present in the tree:
+
+- OpenXRay modifications and new code, including the changes in this fork, are MIT licensed. See [License.txt](License.txt).
+- The bundled GameSpy SDK is BSD-3-Clause, copyright IGN Entertainment, Inc. See [Externals/GameSpy/license.txt](Externals/GameSpy/license.txt). The IGN name is not used to endorse or promote this fork.
+- The X-Ray Engine and all S.T.A.L.K.E.R. game content remain the property of GSC Game World.
+
+This is non-commercial fan work. Builds are not sold and no content is placed behind a paywall. Use of this engine with S.T.A.L.K.E.R. games is subject to GSC Game World's [EULA](https://www.gsc-game.com/eula/) and [Fan Content Creation Guidelines](https://www.gsc-game.com/guidelines/).
+
 **OpenXRay** is an improved version of the X-Ray Engine, the game engine used in the world-famous S.T.A.L.K.E.R. game series by GSC Game World.
 
 This is a fan-made project not affiliated with GSC Game World in any way.
